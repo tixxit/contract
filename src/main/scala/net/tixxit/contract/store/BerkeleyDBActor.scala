@@ -4,16 +4,21 @@ package store
 import java.io.File
 
 import com.sleepycat.je.{ Environment, Database, EnvironmentConfig, DatabaseConfig,
-                          DatabaseEntry, LockMode, OperationStatus }
+                          DatabaseEntry, LockMode, OperationStatus, Durability }
 
 import scalaz.effect.IO
 
-final class BerkeleyDBStore(db: Database) extends Store[IO] {
+final class BerkeleyDBStore(env: Environment, db: Database) extends Store[IO] {
   def putIfAbsent(key: Array[Byte], value: Array[Byte]): IO[Option[Array[Byte]]] = IO {
     val dbKey = new DatabaseEntry(key)
     val dbVal = new DatabaseEntry(value)
-    db.putNoOverwrite(null, dbKey, dbVal) match {
-      case OperationStatus.SUCCESS => None
+    val txn = env.beginTransaction(null, null)
+    val status = db.putNoOverwrite(txn, dbKey, dbVal)
+    txn.commit()
+
+    status match {
+      case OperationStatus.SUCCESS =>
+        None
       case OperationStatus.KEYEXIST =>
         db.get(null, dbKey, dbVal, LockMode.READ_UNCOMMITTED) // Assume success.
         Some(dbVal.getData())
@@ -29,16 +34,22 @@ final class BerkeleyDBStore(db: Database) extends Store[IO] {
     }
   }
 
-  def close(): IO[Unit] = IO(db.synchronized(db.close()))
+  def close(): IO[Unit] = IO {
+    db.synchronized(db.close())
+    env.synchronized(env.close())
+  }
 }
 
 object BerkeleyDBStore {
   def apply(file: File, name: String): Store[IO] = {
     val env = new Environment(file, new EnvironmentConfig()
-      .setTransactional(false)
+      .setTransactional(true)
       .setAllowCreate(true))
-    val db = env.openDatabase(null, name, new DatabaseConfig()
+    val txn = env.beginTransaction(null, null);
+    val db = env.openDatabase(txn, name, new DatabaseConfig()
+      .setTransactional(true)
       .setAllowCreate(true))
-    new BerkeleyDBStore(db)
+    txn.commit()
+    new BerkeleyDBStore(env, db)
   }
 }
