@@ -6,66 +6,86 @@ import java.net.URL
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Try, Success, Failure }
 
-import akka.actor.{ Actor, Props }
+import akka.actor.{ Actor, Props, ActorRefFactory }
+
+import spray.util.actorSystem
 import spray.routing._
 import spray.http._
-import spray.http.StatusCodes.{ NotFound, BadRequest, InternalServerError,
-                                MovedPermanently, TemporaryRedirect }
-import MediaTypes._
+import spray.http.StatusCodes.{ OK, NotFound, BadRequest, InternalServerError,
+                                MovedPermanently, Found }
+import spray.http.MediaTypes._
+import spray.http.HttpHeaders._
+import spray.httpx.marshalling._
 
-final class ShortenerServiceActor(val shortener: Shortener[Future])
-    extends HttpServiceActor with ShortenerService {
-  def executionContext = context.dispatcher
-  def receive = runRoute(shortenRoute)
-}
-
-object ShortenerServiceActor {
-  def props(shortener: Shortener[Future]) =
-    Props(classOf[ShortenerServiceActor], shortener)
-}
+import argonaut._
+import Argonaut._
+import ArgonautMarshallers._
 
 trait ShortenerService extends HttpService {
-  implicit def executionContext: ExecutionContext
+  private implicit def executionContext: ExecutionContext = actorSystem.dispatcher
 
   def shortener: Shortener[Future]
 
-  def expand(key: String): RequestContext => Unit = { ctx =>
+  def requireURL[A: Marshaller](key: String)
+      (f: URL => RequestContext => Unit): RequestContext => Unit = { ctx =>
     shortener.expand(key) onComplete {
-      case Success(Some(url)) => ctx.redirect(Uri(url.toString), MovedPermanently)
+      case Success(Some(url)) => f(url)(ctx)
       case Success(None) => ctx.complete(NotFound)
       case Failure(e) => ctx.complete(InternalServerError)
     }
   }
 
-  def shorten: String => RequestContext => Unit = { url0 => ctx =>
-    Try(new URL(url0)) match {
-      case Success(url) =>
-        shortener.shorten(url) onComplete {
-          case Success(key) => ctx.redirect(Uri(key), TemporaryRedirect)
-          case Failure(e) => ctx.complete(InternalServerError)
-        }
+  def meta(key: String): RequestContext => Unit =
+    requireURL(key) { url => _.complete(Map("key" -> key, "url" -> url.toString).asJson) }
 
-      case Failure(e) =>
-        ctx.complete(BadRequest)
+  def expand(key: String): RequestContext => Unit =
+    requireURL(key) { url => _.redirect(Uri(url.toString), MovedPermanently) }
+
+  private final def isHttp(url: URL): Boolean =
+    url.getProtocol == "http" || url.getProtocol == "https"
+
+  def parseURL(f: URL => RequestContext => Unit): String => RequestContext => Unit = { url0 =>
+    Try(new URL(url0)) match {
+      case Success(url) if isHttp(url) => f(url)
+      case _ => _.complete(BadRequest)
     }
   }
 
+  def shorten: String => RequestContext => Unit = parseURL { url => ctx =>
+    shortener.shorten(url) onComplete {
+      case Success(key) => ctx.redirect(Uri(s"/$key/meta"), Found)
+      case Failure(e) => ctx.complete(InternalServerError)
+    }
+  }
+
+  def postWithUrl = post & formField('url.as[String])
+
+  val uiRoute = 
+    path("") {
+      getFromResource("web/index.html", `text/html`)
+    } ~
+    pathPrefix("static" ~ Slash) {
+      getFromResourceDirectory("web/static")
+    }
+
   val shortenRoute =
     path("") {
-      (post & parameter('url.as[String]))(shorten)
-      get {
-        respondWithMediaType(`text/html`) { // XML is marshalled to `text/xml` by default, so we simply override here
-          complete {
-            <html>
-              <body>
-                <h1>Say hello to <i>spray-routing</i> on <i>spray-can</i>!</h1>
-              </body>
-            </html>
-          }
-        }
-      }
+      postWithUrl(shorten)
+    } ~
+    path(Segment / "meta") { key =>
+      get(meta(key))
     } ~
     path(Segment) { key =>
       get(expand(key))
     }
+}
+
+final class ShortenerServiceActor(val shortener: Shortener[Future])
+    extends HttpServiceActor with ShortenerService {
+  def receive = runRoute(uiRoute ~ shortenRoute)
+}
+
+object ShortenerServiceActor {
+  def props(shortener: Shortener[Future]) =
+    Props(classOf[ShortenerServiceActor], shortener)
 }

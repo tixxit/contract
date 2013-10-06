@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="Tom Switzer">
+
+    <title>Contract</title>
+
+    <link href="static/css/bootstrap.css" rel="stylesheet">
+    <link href="static/css/contract.css" rel="stylesheet">
+  </head>
+  <body>
+    <div class="container">
+      <form id="contract" method="POST">
+        <h2>Enter a long URL</h2>
+        <input name="url" type="text" placeholder="URL" autofocus>
+        <button class="btn btn-lg btn-primary btn-block" type="submit">Contract</button>
+        <p class="out"></p>
+      </form>
+    </div>
+
+    <script src="static/js/jquery-2.0.3.min.js"></script>
+    <script>
+      (function() {
+        var form = $("form#contract");
+        form.submit(function(ev) {
+          $.ajax(form.attr("action"), {
+            type: "POST",
+            data: form.serialize(),
+            success: function(meta) {
+              var link = $("<a>").attr({ href: meta.key });
+              form.find(".out").empty().append(link.text(link.get(0).href));
+            },
+            statusCode: {
+              400: function() {
+                form.find(".out").empty().append("<span class='error'>Invalid URL</span>");
+              }
+            },
+            error: function() {
+              form.find(".out").empty().append("<span class='error'>Unexpected error</span>");
+            }
+          });
+          return false;
+        });
+      })();
+    </script>
+  </body>
+</html>
+
