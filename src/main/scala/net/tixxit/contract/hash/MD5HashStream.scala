@@ -28,7 +28,7 @@ object MD5HashStream extends HashStream {
 
   // Uses MD5 to compute a hash of n bytes.
   private def hash(n: Int, bytes: Array[Byte]): Array[Byte] = {
-    require(n < 16)
+    require(n <= 16)
     val uuid = UUID.nameUUIDFromBytes(bytes)
     val bighash = toBytes(uuid.getLeastSignificantBits, uuid.getMostSignificantBits)
     val hash = new Array[Byte](n)
