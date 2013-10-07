@@ -22,6 +22,8 @@ final class BerkeleyDBStore(env: Environment, db: Database) extends Store[IO] {
       case OperationStatus.KEYEXIST =>
         db.get(null, dbKey, dbVal, LockMode.READ_UNCOMMITTED) // Assume success.
         Some(dbVal.getData())
+      case status =>
+        throw new IllegalStateException(s"Unexpected return value from BDB: $status")
     }
   }
 
@@ -31,6 +33,8 @@ final class BerkeleyDBStore(env: Environment, db: Database) extends Store[IO] {
     db.get(null, dbKey, dbVal, LockMode.READ_UNCOMMITTED) match {
       case OperationStatus.SUCCESS => Some(dbVal.getData())
       case OperationStatus.NOTFOUND => None
+      case status =>
+        throw new IllegalStateException(s"Unexpected return value from BDB: $status")
     }
   }
 
