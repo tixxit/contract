@@ -26,7 +26,7 @@ trait ShortenerService extends HttpService {
 
   def shortener: Shortener[Future]
 
-  def requireURL[A: Marshaller](key: String)
+  def requireURL(key: String)
       (f: URL => RequestContext => Unit): RequestContext => Unit = { ctx =>
     shortener.expand(key) onComplete {
       case Success(Some(url)) => f(url)(ctx)

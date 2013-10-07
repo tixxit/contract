@@ -14,7 +14,7 @@ object MD5HashStream extends HashStream {
   private final val InitLength = 3
 
   // Convert a 128 bit integer to an array of 16 bytes in LE.
-  private final def toBytes(low: Long, high: Long): Array[Byte] = {
+  private def toBytes(low: Long, high: Long): Array[Byte] = {
     val bytes = new Array[Byte](16)
     @tailrec def fill(i: Int, n: Long): Unit =
       if (n != 0) {
@@ -42,7 +42,7 @@ object MD5HashStream extends HashStream {
   }
 
   // An infinite stream of hashed values.
-  private final def hashStream(value: String, tries: Int, width: Int): InfStream[String] = {
+  private def hashStream(value: String, tries: Int, width: Int): InfStream[String] = {
     if (width < 16 && tries > MaxTries) {
       hashStream(value, 0, width + 1)
     } else {

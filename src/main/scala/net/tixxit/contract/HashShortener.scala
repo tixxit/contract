@@ -30,7 +30,7 @@ final case class HashShortener[M[+_]: Monad](hasher: HashStream, store: Store[M]
       new URL(new String(value, Charsets.Utf8))
     }).run
 
-  private final def put(hashes: InfStream[String], value: Array[Byte]): M[String] = {
+  private def put(hashes: InfStream[String], value: Array[Byte]): M[String] = {
     val key = hashes.head.getBytes(Charsets.Utf8)
     store.putIfAbsent(key, value) flatMap { oldValue =>
       oldValue filter { xs =>
