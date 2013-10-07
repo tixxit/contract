@@ -48,18 +48,18 @@ class ShortenerServiceSpec extends Specification with Specs2RouteTest with Short
 
     "GET of non-existent contracted URL returns 404" in {
       Get("/asdfasdf") ~> shortenRoute ~> check {
-        status === NotFound
+        status must_== NotFound
       }
     }
 
     "POST to root redirects to metadata of contracted URL" in {
       Post("/", fillForm(google)) ~> shortenRoute ~> check {
-        status === Found
+        status must_== Found
         header("Location") map (_.value) should beLike { case Some(path) =>
           Get(path) ~> shortenRoute ~> check {
-            status === OK
+            status must_== OK
             val result = entityAs[Json].jdecode[Map[String,String]].toOption
-            result.flatMap { obj => obj.get("url") } === Some(google)
+            result.flatMap { obj => obj.get("url") } must_== Some(google)
           }
         }
       }
@@ -78,9 +78,9 @@ class ShortenerServiceSpec extends Specification with Specs2RouteTest with Short
             val result = entityAs[Json].jdecode[Map[String,String]].toOption
             result.flatMap { obj => obj.get("key") } should beLike { case Some(key) =>
               Get(s"/$key") ~> shortenRoute ~> check {
-                status === MovedPermanently
+                status must_== MovedPermanently
                 val url: Option[String] = header("Location") map (_.value)
-                url === Some(website)
+                url must_== Some(website)
               }
             }
           }
@@ -90,21 +90,21 @@ class ShortenerServiceSpec extends Specification with Specs2RouteTest with Short
 
     "URL cannot be FTP or other random protocols" in {
       Post("/", fillForm("ftp://asdf.com/")) ~> shortenRoute ~> check {
-        status === BadRequest
+        status must_== BadRequest
       }
 
       Post("/", fillForm("gopher://asdf.com/")) ~> shortenRoute ~> check {
-        status === BadRequest
+        status must_== BadRequest
       }
 
       Post("/", fillForm("steam://asdf.com/")) ~> shortenRoute ~> check {
-        status === BadRequest
+        status must_== BadRequest
       }
     }
 
     "URL can be HTTPS" in {
       Post("/", fillForm("https://asdf.com/")) ~> shortenRoute ~> check {
-        status === Found
+        status must_== Found
       }
     }
   }

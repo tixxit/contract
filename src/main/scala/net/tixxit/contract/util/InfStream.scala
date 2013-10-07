@@ -8,6 +8,8 @@ package util
 final class InfStream[A](val head: A, tail0: => InfStream[A]) {
   def tail = tail0 // We could use a lazy val, but wastes space.
 
+  def ::(h: A): InfStream[A] = new InfStream(h, this)
+
   def foldRight[Z](z: => Z)(f: (A, => Z) => Z): Z =
     f(head, tail.foldRight(z)(f))
 
